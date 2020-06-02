@@ -15,6 +15,7 @@ bp = Blueprint('ads', __name__)
 
 class AdsView(MethodView):
     def get(self):
+
         params = {
             "seller_id" : request.args.get("seller_id"),
             #"tags" : request.args.get("tags"),
@@ -24,28 +25,31 @@ class AdsView(MethodView):
         params = {key: value for key, value in params.items() if value is not None}
         pars = ', '.join(f'{key}="{value}"' for key, value in params.items())
 
-        where = f'WHERE {pars}'
+        where = ""
+        if pars:
+            where = f'WHERE {pars}'
 
         select = """
                  SELECT ad.id, ad.seller_id, ad.title, ad.date, 
-                 car.make, car.model, car.mileage, car.num_owners, car.reg_number, 
-                 color.id, color.name, color.hex, image.title, image.url                                 
-                 FROM ad JOIN car on ad.car_id = car.id                
-                 JOIN carcolor ON ad.car_id=carcolor.car_id 
-                 JOIN color on carcolor.color_id = color.id 
-                 JOIN image ON car.id = image.car_id      
+                 car.make, car.model, car.mileage, car.num_owners, car.reg_number, t.name,
+                 color.id, color.name, color.hex                                                 
+                 FROM ad JOIN car on ad.car_id = car.id           
+                 JOIN adtag a on ad.id = a.ad_id
+                 JOIN tag t on a.tag_id = t.id
+                 JOIN image ON car.id = image.car_id
+                 JOIN carcolor ON ad.car_id=carcolor.car_id
+                 JOIN color on carcolor.color_id = color.id                     
                  """
 
-        if session['user_id']:
-            con = db.connection
-            cur = con.execute(select + where + ';'
-            )
 
-            result = cur.fetchall()
-            print(result)
-            return jsonify([dict(row) for row in result])
-        else:
-            return '', 403
+        con = db.connection
+        cur = con.execute(select + where + ';')
+        result = cur.fetchall()
+
+        db.close_db("close") #получается двойной результат, закрытие базы не помогает
+        print(result)
+        return jsonify([dict(row) for row in result])
+
 
     def post(self):
         try:
@@ -104,17 +108,18 @@ class AdsView(MethodView):
             print(f"85 {e}")
             return '', 409
 
-        try:
-            for color in colors:
+        for color in colors:
+            try:
                 con.execute(
                     'INSERT INTO carcolor (car_id, color_id) '
                     'VALUES (?, ?)',
                     (car_id, color),
                 )
-            con.commit()
-        except sqlite3.IntegrityError as e:
-            print(f"97 {e}")
-            return '', 409
+
+            except sqlite3.IntegrityError as e:
+                print(f"97 {e}")
+                return '', 409
+        con.commit()
 
         try:
             cur = con.execute(
@@ -139,8 +144,8 @@ class AdsView(MethodView):
                     (tag,),
                 )
                 con.commit()
-                ad_id = cur.lastrowid
-                tags_ids.append(ad_id)
+                t_id = cur.lastrowid
+                tags_ids.append(t_id)
             except Exception as e:
                 print(f"Operational error {e}")
                 cur = con.execute(
@@ -158,7 +163,7 @@ class AdsView(MethodView):
         try:
             for tag_id in tags_ids:
 
-                cur = con.execute(
+                con.execute(
                     'INSERT INTO adtag (tag_id, ad_id) '
                     'VALUES (?, ?)',
                     (tag_id, ad_id),
@@ -194,37 +199,49 @@ class AdsView(MethodView):
 
 class AdView(MethodView):
     def get(self, ad_id):
-        if session['user_id']:
+        print(f"AD ID: {ad_id}")
+        con = db.connection
+        cur = con.execute("""
+            SELECT ad.id, ad.seller_id, ad.title, ad.date, 
+                 car.make, car.model, car.mileage, car.num_owners, car.reg_number, t.name,
+                 color.id, color.name, color.hex                                                 
+                 FROM ad JOIN car on ad.car_id = car.id           
+                 JOIN adtag a on ad.id = a.ad_id
+                 JOIN tag t on a.tag_id = t.id
+                 JOIN image ON car.id = image.car_id
+                 JOIN carcolor ON ad.car_id=carcolor.car_id
+                 JOIN color on carcolor.color_id = color.id 
+            WHERE ad.id = ?;
+            """,
+            (ad_id,),
+        )
+        ad = cur.fetchone()
+        if ad is None:
+            return '', 404
+        return jsonify(dict(ad))
 
-            con = db.connection
-            cur = con.execute(
-                'SELECT * '
-                'FROM ad JOIN carcolor ON ad.car_id=carcolor.color_id '
-                'WHERE ad.id = ?',
-                (ad_id,),
-            )
-            ad = cur.fetchone()
-            if ad is None:
-                return '', 404
-            return jsonify(dict(ad))
-        else:
-            return '', 403
+    def patch(self, ad_id):
+        return 'Not implemented', 200
+
 
     def delete(self, ad_id):
-        if session['user_id']:
-            con = db.connection
-            cur = con.execute(
-                'DELETE '
-                'FROM ad '
-                'WHERE id = ?',
-                (ad_id,),
-            )
-            ad = cur.fetchone()
-            if ad is None:
-                return '', 404
-
-        else:
+        try:
+            seller_id = session['user_id']
+        except Exception as e:
+            print(e)
             return '', 403
+
+        con = db.connection
+        cur = con.execute(
+            'DELETE '
+            'FROM ad '
+            'WHERE id = ?',
+            (ad_id,),
+        )
+        ad = cur.fetchone()
+        if ad is None:
+            return '', 404
+
 
 bp.add_url_rule('', view_func=AdsView.as_view('ads'))
 bp.add_url_rule('/<int:ad_id>', view_func=AdView.as_view('ad'))

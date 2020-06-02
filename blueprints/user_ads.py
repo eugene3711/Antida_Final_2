@@ -16,6 +16,8 @@ bp = Blueprint('user_ads', __name__)
 
 class UserAdsView(MethodView):
     def get(self, user_id):
+
+
         con = db.connection
         cur = con.execute(
             'SELECT * '

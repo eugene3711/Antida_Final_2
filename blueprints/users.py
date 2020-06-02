@@ -18,8 +18,8 @@ class UsersView(MethodView):
         if session['user_id']:
             con = db.connection
             cur = con.execute(
-                'SELECT * '
-                'FROM user'
+                'SELECT user.id, s.phone '
+                'FROM user JOIN seller s on user.id = s.user_id'
             )
             rows = cur.fetchall()
             return jsonify([dict(row) for row in rows])
@@ -100,70 +100,79 @@ class UsersView(MethodView):
 
 class UserView(MethodView):
     def get(self, user_id):
-        if session['user_id']:
-            con = db.connection
+
+        try:
+            u_id = session['user_id']
+        except Exception as e:
+            print(e)
+            return '', 403
+
+        con = db.connection
+        cur = con.execute(
+            'SELECT id, email, first_name, last_name, is_seller '
+            'FROM user '
+            'WHERE id = ?',
+            (user_id,),
+        )
+        user = cur.fetchone()
+        if user is None:
+            return '', 404
+        user_info = dict(user)
+        print(user_info)
+
+        if user_info['is_seller'] == 1:
             cur = con.execute(
-                'SELECT id, email, first_name, last_name, is_seller '
-                'FROM user '
-                'WHERE id = ?',
+                'SELECT phone, zip_code, city_id, street, home '
+                'FROM seller '
+                'WHERE user_id = ?',
                 (user_id,),
             )
-            user = cur.fetchone()
-            if user is None:
+            seller = cur.fetchone()
+            print(seller)
+            if seller is None:
                 return '', 404
-            user_info = dict(user)
-            print(user_info)
+            seller_info = dict(seller)
+            user_info.update(seller_info)
+            return jsonify(user_info), 200
 
-            if user_info['is_seller'] == 1:
-                cur = con.execute(
-                    'SELECT phone, zip_code, city_id, street, home '
-                    'FROM seller '
-                    'WHERE user_id = ?',
-                    (user_id,),
-                )
-                seller = cur.fetchone()
-                print(seller)
-                if seller is None:
-                    return '', 404
-                seller_info = dict(seller)
-                user_info.update(seller_info)
-                return jsonify(user_info), 200
-        else:
-            return '', 403
 
     def patch(self, user_id):
-        if session['user_id']:
-            request_json = request.json # это словарь ? если да, то можно из него сразу убрать записи с None
-            print(type(request_json))
-            print(request_json.keys())
-
-            if not request_json:
-                return '', 400
-
-            con = db.connection
-
-            cur = con.execute(
-                'SELECT id, email '
-                'FROM user '
-                'WHERE id = ?',
-                (user_id,),
-            )
-            user = cur.fetchone()
-            if user is None:
-                return '', 404
-
-            # из чата
-            params = ','.join(f'{key} = ?' for key in request_json)
-            query = f'UPDATE user SET {params} WHERE id = ?'
-            try:
-                con.execute(query, (*request_json.values(), user_id))
-            except Exception as e:
-                return f'Error {e}', 400
-
-            con.commit()
-            return '', 200
-        else:
+        try:
+            u_id = session['user_id']
+        except Exception as e:
+            print(e)
             return '', 403
+
+        request_json = request.json
+        print(type(request_json))
+        print(request_json.keys())
+
+        if not request_json:
+            return '', 400
+
+        con = db.connection
+
+        cur = con.execute(
+            'SELECT id, email '
+            'FROM user '
+            'WHERE id = ?',
+            (user_id,),
+        )
+        user = cur.fetchone()
+        if user is None:
+            return '', 404
+
+
+        params = ','.join(f'{key} = ?' for key in request_json)
+        query = f'UPDATE user SET {params} WHERE id = ?'
+        try:
+            con.execute(query, (*request_json.values(), user_id))
+        except Exception as e:
+            return f'Error {e}', 400
+
+        con.commit()
+        return '', 200
+
 
 bp.add_url_rule('', view_func=UsersView.as_view('users'))
 bp.add_url_rule('/<int:user_id>', view_func=UserView.as_view('user'))
