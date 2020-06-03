@@ -35,15 +35,14 @@ class UsersView(MethodView):
             is_seller = True
         else:
             is_seller = False
-        print(type(is_seller))
-        print(is_seller)
+
         if is_seller:
             phone = request_json.get('phone')
             zip_code = request_json.get('zip_code')
             city_id = request_json.get('city_id')
             street = request_json.get('street')
             home = request_json.get('home')
-        if not email or not password or not first_name or not last_name:  #add is_seller check
+        if not email or not password or not first_name or not last_name:
             return 'Not enough user data', 400
 
         if is_seller:
@@ -62,12 +61,10 @@ class UsersView(MethodView):
             )
             con.commit()
             user_id = cur.lastrowid
-            print(user_id)
         except sqlite3.IntegrityError:
-            return 'user не создан', 409
+            return f"{e}", 409
         except Exception as e:
-            print(f"Не удалось создать отношение \n Ошибка {e}")
-            return "user не создан небд ", 409
+            return f"{e}", 409
         if is_seller:
 
             try:
@@ -78,13 +75,9 @@ class UsersView(MethodView):
                 )
                 con.commit()
             except sqlite3.IntegrityError as e:
-                print(e)
-                return 'seller не создан', 409
+                return f"{e}", 409
             except Exception as e:
-                print(f"Не удалось создать отношение \n Ошибка {e}")
-                return "seller не создан небд ", 409
-        # add seller info if seller too
-        #id = print(cur.lastrowid)
+                return f"{e}", 409
 
         cur = con.execute(
             'SELECT * '
@@ -92,8 +85,7 @@ class UsersView(MethodView):
             'WHERE user.id = ? ',
             (user_id,),
         )
-        print(cur.fetchall())
-        all_data = dict(cur.fetchall())
+        all_data = [dict(row) for row in cur.fetchall()]
 
         return all_data, 201
 
@@ -104,48 +96,31 @@ class UserView(MethodView):
         try:
             u_id = session['user_id']
         except Exception as e:
-            print(e)
             return '', 403
 
         con = db.connection
         cur = con.execute(
-            'SELECT id, email, first_name, last_name, is_seller '
-            'FROM user '
-            'WHERE id = ?',
+            'SELECT user.id, user.email, user.first_name, user.last_name, user.is_seller, '
+            'seller.phone, seller.zip_code, seller.city_id, seller.street, seller.home '
+            'FROM user JOIN seller ON user.id = seller.user_id '
+            'WHERE user.id = ?',
             (user_id,),
         )
         user = cur.fetchone()
         if user is None:
             return '', 404
         user_info = dict(user)
-        print(user_info)
 
-        if user_info['is_seller'] == 1:
-            cur = con.execute(
-                'SELECT phone, zip_code, city_id, street, home '
-                'FROM seller '
-                'WHERE user_id = ?',
-                (user_id,),
-            )
-            seller = cur.fetchone()
-            print(seller)
-            if seller is None:
-                return '', 404
-            seller_info = dict(seller)
-            user_info.update(seller_info)
-            return jsonify(user_info), 200
+        return jsonify(user_info), 200
 
 
     def patch(self, user_id):
         try:
             u_id = session['user_id']
         except Exception as e:
-            print(e)
             return '', 403
 
         request_json = request.json
-        print(type(request_json))
-        print(request_json.keys())
 
         if not request_json:
             return '', 400
@@ -161,7 +136,6 @@ class UserView(MethodView):
         user = cur.fetchone()
         if user is None:
             return '', 404
-
 
         params = ','.join(f'{key} = ?' for key in request_json)
         query = f'UPDATE user SET {params} WHERE id = ?'
