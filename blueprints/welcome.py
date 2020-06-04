@@ -15,7 +15,7 @@ def welcome():
         con = db.connection
         cur = con.execute(
             'SELECT first_name, last_name '
-            'FROM user '
+            'FROM account '
             'WHERE id = ?',
             (session['user_id'],),
         )

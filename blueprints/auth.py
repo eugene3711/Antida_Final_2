@@ -24,7 +24,7 @@ def login():
     con = db.connection
     cur = con.execute(
         'SELECT email, password, id '
-        'FROM user '
+        'FROM account '
         'WHERE email = ?',
         (email,),
     )

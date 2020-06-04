@@ -31,13 +31,16 @@ class CitiesView(MethodView):
         if not name:
             return '', 400
 
-        con = db.connection
-        con.execute(
-            'INSERT INTO city (name) '
-            'VALUES (?)',
-            (name,),
-        )
-        con.commit()
+        try:
+            con = db.connection
+            con.execute(
+                'INSERT INTO city (name) '
+                'VALUES (?)',
+                (name,),
+            )
+            con.commit()
+        except Exception:
+            return '', 400
 
         cur = con.execute(
             'SELECT * '

@@ -18,8 +18,8 @@ class UsersView(MethodView):
         if session['user_id']:
             con = db.connection
             cur = con.execute(
-                'SELECT user.id, s.phone '
-                'FROM user JOIN seller s on user.id = s.user_id'
+                'SELECT account.id, s.phone '
+                'FROM account JOIN seller s on account.id = s.user_id'
             )
             rows = cur.fetchall()
             return jsonify([dict(row) for row in rows])
@@ -55,7 +55,7 @@ class UsersView(MethodView):
 
         try:
             cur = con.execute(
-                'INSERT INTO user (email, password, first_name, last_name, is_seller) '
+                'INSERT INTO account (email, password, first_name, last_name, is_seller) '
                 'VALUES (?, ?, ?, ?, ?)',
                 (email, password_hash, first_name, last_name, is_seller),
             )
@@ -81,8 +81,8 @@ class UsersView(MethodView):
 
         cur = con.execute(
             'SELECT * '
-            'FROM user JOIN seller ON user.id = seller.user_id '
-            'WHERE user.id = ? ',
+            'FROM account JOIN seller ON account.id = seller.user_id '
+            'WHERE account.id = ? ',
             (user_id,),
         )
         all_data = [dict(row) for row in cur.fetchall()]
@@ -100,10 +100,10 @@ class UserView(MethodView):
 
         con = db.connection
         cur = con.execute(
-            'SELECT user.id, user.email, user.first_name, user.last_name, user.is_seller, '
+            'SELECT account.id, account.email, account.first_name, account.last_name, account.is_seller, '
             'seller.phone, seller.zip_code, seller.city_id, seller.street, seller.home '
-            'FROM user JOIN seller ON user.id = seller.user_id '
-            'WHERE user.id = ?',
+            'FROM account JOIN seller ON account.id = seller.user_id '
+            'WHERE account.id = ?',
             (user_id,),
         )
         user = cur.fetchone()
@@ -129,7 +129,7 @@ class UserView(MethodView):
 
         cur = con.execute(
             'SELECT id, email '
-            'FROM user '
+            'FROM account '
             'WHERE id = ?',
             (user_id,),
         )
@@ -138,7 +138,7 @@ class UserView(MethodView):
             return '', 404
 
         params = ','.join(f'{key} = ?' for key in request_json)
-        query = f'UPDATE user SET {params} WHERE id = ?'
+        query = f'UPDATE account SET {params} WHERE id = ?'
         try:
             con.execute(query, (*request_json.values(), user_id))
         except Exception as e:

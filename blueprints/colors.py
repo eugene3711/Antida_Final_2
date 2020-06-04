@@ -32,14 +32,16 @@ class ColorsView(MethodView):
         if not name or not hex:
             return '', 400
 
-        con = db.connection
-        con.execute(
-            'INSERT INTO color (name, hex) '
-            'VALUES (?, ?)',
-            (name, hex),
-        )
-        con.commit()
-
+        try:
+            con = db.connection
+            con.execute(
+                'INSERT INTO color (name, hex) '
+                'VALUES (?, ?)',
+                (name, hex),
+            )
+            con.commit()
+        except Exception:
+            return '', 400
         cur = con.execute(
             'SELECT * '
             'FROM color '
